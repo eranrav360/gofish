@@ -389,7 +389,7 @@ body {
 /* Action banner (replaces game log) */
 .action-banner {
   flex-shrink: 0;
-  min-height: 44px;
+  min-height: 56px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -397,14 +397,15 @@ body {
   text-align: center;
 }
 .action-banner-text {
-  font-size: 0.92rem;
-  font-weight: 600;
+  font-size: 1.1rem;
+  font-weight: 700;
   color: var(--text);
-  background: rgba(42,64,112,0.7);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 7px 18px;
+  background: rgba(42,64,112,0.75);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 22px;
+  padding: 10px 22px;
   max-width: 100%;
+  line-height: 1.4;
   animation: bannerFadeIn 0.3s ease;
 }
 @keyframes bannerFadeIn {

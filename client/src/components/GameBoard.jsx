@@ -17,6 +17,7 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const [bannerText, setBannerText] = useState('');
   const [bannerKey, setBannerKey] = useState(0);
   const [peekCountry, setPeekCountry] = useState(null);
+  const pendingRef = useRef(false); // ghost-click / double-tap guard
 
   // Banner queue — ref-based so we don't need extra re-renders
   const queueRef = useRef([]);
@@ -95,15 +96,23 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   }
 
   function handleAsk(targetId) {
-    if (!selectedCountry || !targetId) return;
+    if (!selectedCountry || !targetId || pendingRef.current) return;
+    pendingRef.current = true;
     socket.emit('ask-for-country', { roomCode, targetPlayerId: targetId, country: selectedCountry });
     setSelectedCountry(null);
     setPeekCountry(null);
   }
 
   function handleGuess(characteristicId) {
+    if (pendingRef.current) return;
+    pendingRef.current = true;
     socket.emit('guess-characteristic', { roomCode, characteristicId });
   }
+
+  // Release the pending lock whenever the server sends a new game state
+  useEffect(() => {
+    pendingRef.current = false;
+  }, [gameState]);
 
   function handleStart() {
     socket.emit('start-game', { roomCode });

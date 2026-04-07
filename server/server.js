@@ -139,6 +139,7 @@ io.on('connection', (socket) => {
   socket.on('ask-for-country', ({ roomCode, targetPlayerId, country }) => {
     const room = rooms[roomCode];
     if (!room || room.phase !== 'playing') return;
+    if (room.awaitingGuess) return; // already waiting for a guess — ignore duplicate
 
     const currentPlayer = room.players[room.currentPlayerIndex];
     if (currentPlayer.id !== socket.id) return socket.emit('error', 'Not your turn');
