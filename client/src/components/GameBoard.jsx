@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import socket from '../socket';
 import Card from './Card';
-import GameLog from './GameLog';
 import { COUNTRIES_MAP } from '../countries';
 
 const COUNTRY_FLAGS = Object.fromEntries(Object.entries(COUNTRIES_MAP).map(([id, c]) => [id, c.flag]));
@@ -14,6 +13,9 @@ function initials(name) {
 export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [toast, setToast] = useState(null);
+  const [bannerText, setBannerText] = useState('');
+  const [peekCountry, setPeekCountry] = useState(null);
+  const bannerTimerRef = useRef(null);
 
   const { phase, players, currentPlayerIndex, deckCount, log, awaitingGuess } = gameState;
   const me = players.find(p => p.id === playerId);
@@ -22,11 +24,18 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const isHost = me?.isHost;
   const iAmGuessing = awaitingGuess?.askerId === playerId;
 
-  // Dedup hand by country for selection purposes — show one card per country grouped
   const myHand = me?.hand || [];
-
-  // Group hand cards by country for display (sorted by country)
   const handGrouped = [...myHand].sort((a, b) => a.country.localeCompare(b.country));
+
+  // Show last log entry as action banner
+  useEffect(() => {
+    if (log && log.length > 0) {
+      const last = log[log.length - 1];
+      setBannerText(last);
+      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
+      bannerTimerRef.current = setTimeout(() => setBannerText(''), 4000);
+    }
+  }, [log]);
 
   useEffect(() => {
     if (gameState.lastAction) {
@@ -37,7 +46,6 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   }, [gameState.lastAction]);
 
   useEffect(() => {
-    // Deselect if no longer my turn
     if (!isMyTurn) setSelectedCountry(null);
   }, [isMyTurn]);
 
@@ -47,14 +55,17 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   }
 
   function handleCardClick(card) {
-    if (!isMyTurn) return;
-    setSelectedCountry(prev => prev === card.country ? null : card.country);
+    if (!isMyTurn || !!awaitingGuess) return;
+    // Open peek overlay for this country
+    setPeekCountry(card.country);
+    setSelectedCountry(card.country);
   }
 
   function handleAsk(targetId) {
     if (!selectedCountry || !targetId) return;
     socket.emit('ask-for-country', { roomCode, targetPlayerId: targetId, country: selectedCountry });
     setSelectedCountry(null);
+    setPeekCountry(null);
   }
 
   function handleGuess(characteristicId) {
@@ -69,9 +80,10 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
     socket.emit('restart-game', { roomCode });
   }
 
-  const selectedCardInfo = selectedCountry
-    ? { flag: COUNTRY_FLAGS[selectedCountry], name: COUNTRY_NAMES[selectedCountry] }
-    : null;
+  function closePeek() {
+    setPeekCountry(null);
+    setSelectedCountry(null);
+  }
 
   // ── WAITING ROOM ──────────────────────────────────────────────────────
   if (phase === 'lobby') {
@@ -96,14 +108,14 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
         {isHost ? (
           <button
             className="btn btn-success"
-            style={{ width: '100%', maxWidth: 360 }}
+            style={{ width: '100%', maxWidth: 380 }}
             disabled={players.length < 2}
             onClick={handleStart}
           >
             {players.length < 2 ? 'Waiting for players…' : '🎮 Start Game'}
           </button>
         ) : (
-          <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: 8 }}>
             Waiting for host to start…
           </div>
         )}
@@ -137,7 +149,7 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
             </button>
           )}
           {!isHost && (
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               Waiting for host to restart…
             </div>
           )}
@@ -148,6 +160,7 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
 
   // ── PLAYING ───────────────────────────────────────────────────────────
   const currentPlayerName = players[currentPlayerIndex]?.name;
+  const peekData = peekCountry ? COUNTRIES_MAP[peekCountry] : null;
 
   return (
     <div className="game-board">
@@ -171,8 +184,8 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
         {opponents.map(opp => (
           <div
             key={opp.id}
-            className={`opponent-card${isMyTurn && selectedCountry ? ' targetable' : ''}${players[currentPlayerIndex]?.id === opp.id ? ' active-turn' : ''}`}
-            onClick={() => isMyTurn && selectedCountry && handleAsk(opp.id)}
+            className={`opponent-card${isMyTurn && selectedCountry && !peekCountry ? ' targetable' : ''}${players[currentPlayerIndex]?.id === opp.id ? ' active-turn' : ''}`}
+            onClick={() => isMyTurn && selectedCountry && !peekCountry && handleAsk(opp.id)}
           >
             <div className="opponent-avatar">{initials(opp.name)}</div>
             <div className="opponent-name">{opp.name}</div>
@@ -188,52 +201,32 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
         ))}
       </div>
 
-      {/* Game log */}
-      <GameLog log={log} />
+      {/* Action banner */}
+      <div className="action-banner">
+        {bannerText && (
+          <div className="action-banner-text" key={bannerText}>
+            {bannerText}
+          </div>
+        )}
+      </div>
 
       {/* My books */}
       <div className="my-books-strip">
         <span className="my-books-label">My Books</span>
         <div className="my-books-flags">
           {(me?.books || []).length === 0
-            ? <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>none yet</span>
+            ? <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>none yet</span>
             : (me?.books || []).map(b => (
               <div key={b} className="my-book-item">
                 <span>{COUNTRY_FLAGS[b]}</span>
-                <span style={{ fontSize: '0.72rem' }}>{COUNTRY_NAMES[b]}</span>
+                <span style={{ fontSize: '0.75rem' }}>{COUNTRY_NAMES[b]}</span>
               </div>
             ))
           }
         </div>
       </div>
 
-      {/* Ask panel — step 1: select country, then pick opponent */}
-      {isMyTurn && !awaitingGuess && selectedCountry && (
-        <div className="ask-panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <div className="ask-panel-label">Ask about:</div>
-              <div className="ask-panel-country">
-                {selectedCardInfo.flag} {selectedCardInfo.name}
-              </div>
-            </div>
-            <button className="ask-cancel-btn" onClick={() => setSelectedCountry(null)}>✕ cancel</button>
-          </div>
-          <div className="ask-panel-players">
-            {opponents.map(opp => (
-              <button
-                key={opp.id}
-                className="ask-player-btn"
-                onClick={() => handleAsk(opp.id)}
-              >
-                {initials(opp.name)} {opp.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Guess panel — step 2: pick which characteristic the opponent holds */}
+      {/* Guess panel */}
       {iAmGuessing && (
         <div className="guess-panel">
           <div className="guess-panel-title">
@@ -267,12 +260,53 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
             />
           ))}
           {myHand.length === 0 && (
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', padding: '10px 0' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem', padding: '10px 0' }}>
               No cards in hand
             </span>
           )}
         </div>
       </div>
+
+      {/* Peek overlay */}
+      {peekCountry && peekData && (
+        <div className="peek-overlay" onClick={closePeek}>
+          <div className="peek-card" onClick={e => e.stopPropagation()}>
+            <div className="peek-title">
+              <span>{peekData.flag}</span>
+              <span>{peekData.name}</span>
+            </div>
+            <div className="peek-items">
+              {peekData.characteristics.map(c => {
+                const iMine = myHand.some(card => card.id === c.id);
+                return (
+                  <div key={c.id} className={`peek-item${iMine ? ' peek-item-mine' : ''}`}>
+                    <span className="peek-item-emoji">{c.emoji}</span>
+                    <span className="peek-item-label">{c.label}</span>
+                    {iMine && <span className="peek-item-badge">YOU</span>}
+                  </div>
+                );
+              })}
+            </div>
+            {isMyTurn && (
+              <div className="peek-ask-section">
+                <div className="peek-ask-label">Ask who has it?</div>
+                <div className="peek-ask-buttons">
+                  {opponents.map(opp => (
+                    <button
+                      key={opp.id}
+                      className="peek-ask-btn"
+                      onClick={() => handleAsk(opp.id)}
+                    >
+                      {initials(opp.name)} {opp.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <button className="peek-cancel-btn" onClick={closePeek}>✕ Close</button>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (

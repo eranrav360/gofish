@@ -155,7 +155,7 @@ io.on('connection', (socket) => {
     if (targetHas) {
       // Target has the country — asker must now guess the specific characteristic
       room.awaitingGuess = { askerId: socket.id, targetId: target.id, country };
-      room.log.push(`🤔 ${target.name} has a ${countryName} card! ${currentPlayer.name}, guess which characteristic…`);
+      room.log.push(`🤔 ${currentPlayer.name} asked ${target.name} for ${countryName} — ${target.name} has one! Guess which characteristic…`);
     } else {
       // Go Fish immediately
       goFish(room, currentPlayer, target, country, countryName);
@@ -207,7 +207,7 @@ io.on('connection', (socket) => {
   });
 
   function goFish(room, currentPlayer, target, country, countryName) {
-    room.log.push(`🐟 Go Fish! ${currentPlayer.name} draws from the deck.`);
+    room.log.push(`🐟 ${currentPlayer.name} asked ${target.name} for ${countryName} — Go Fish!`);
     room.lastAction = { type: 'gofish', askerId: currentPlayer.id, country };
 
     let lucky = false;
