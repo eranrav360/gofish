@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import socket from '../socket';
 import Card from './Card';
 import { COUNTRIES_MAP } from '../countries';
+import { playSoundForMessage } from '../sounds';
 
 const COUNTRY_FLAGS = Object.fromEntries(Object.entries(COUNTRIES_MAP).map(([id, c]) => [id, c.flag]));
 const COUNTRY_NAMES = Object.fromEntries(Object.entries(COUNTRIES_MAP).map(([id, c]) => [id, c.name]));
@@ -14,7 +15,14 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [toast, setToast] = useState(null);
   const [bannerText, setBannerText] = useState('');
+  const [bannerKey, setBannerKey] = useState(0);
   const [peekCountry, setPeekCountry] = useState(null);
+
+  // Banner queue — ref-based so we don't need extra re-renders
+  const queueRef = useRef([]);
+  const processingRef = useRef(false);
+  const prevLogRef = useRef([]);
+  const timerRef = useRef(null);
 
   const { phase, players, currentPlayerIndex, deckCount, log, awaitingGuess } = gameState;
   const me = players.find(p => p.id === playerId);
@@ -26,20 +34,49 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const myHand = me?.hand || [];
   const handGrouped = [...myHand].sort((a, b) => a.country.localeCompare(b.country));
 
-  // Show last log entry as action banner — stays until next action
-  useEffect(() => {
-    if (log && log.length > 0) {
-      setBannerText(log[log.length - 1]);
+  function processQueue() {
+    if (queueRef.current.length === 0) {
+      processingRef.current = false;
+      return;
     }
-  }, [log]);
+    const msg = queueRef.current.shift();
+    setBannerText(msg);
+    setBannerKey(k => k + 1);
+    playSoundForMessage(msg);
+    if (queueRef.current.length > 0) {
+      // More messages waiting — show each for 2.2 seconds then advance
+      timerRef.current = setTimeout(processQueue, 2200);
+    } else {
+      // Last message stays until next event
+      processingRef.current = false;
+    }
+  }
 
   useEffect(() => {
-    if (gameState.lastAction) {
-      const { type } = gameState.lastAction;
-      if (type === 'gofish') showToast('🐟 Go Fish!', 'normal');
-      else if (type === 'success') showToast('✅ Got some!', 'success');
+    if (!log || log.length === 0) return;
+    const prev = prevLogRef.current;
+
+    // Detect full reset (game restart) vs incremental update
+    const isReset = log.length <= 1 || (prev.length > 0 && log[0] !== prev[0]);
+    const newEntries = isReset ? log : log.slice(prev.length);
+    prevLogRef.current = log;
+
+    if (newEntries.length === 0) return;
+
+    if (isReset) {
+      // Clear any pending queue on restart
+      queueRef.current = [];
+      if (timerRef.current) clearTimeout(timerRef.current);
+      processingRef.current = false;
     }
-  }, [gameState.lastAction]);
+
+    queueRef.current.push(...newEntries);
+
+    if (!processingRef.current) {
+      processingRef.current = true;
+      processQueue();
+    }
+  }, [log]);
 
   useEffect(() => {
     if (!isMyTurn) setSelectedCountry(null);
@@ -200,7 +237,7 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
       {/* Action banner */}
       <div className="action-banner">
         {bannerText && (
-          <div className="action-banner-text" key={bannerText}>
+          <div className="action-banner-text" key={bannerKey}>
             {bannerText}
           </div>
         )}

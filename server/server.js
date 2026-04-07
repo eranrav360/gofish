@@ -216,9 +216,13 @@ io.on('connection', (socket) => {
       currentPlayer.hand.push(drawn);
       if (drawn.country === country) {
         lucky = true;
-        room.log.push(`🍀 ${currentPlayer.name} drew a ${countryName} card — lucky! Goes again!`);
+        room.log.push(`🍀 Lucky! ${currentPlayer.name} drew ${countryName} — goes again!`);
+      } else {
+        room.log.push(`🃏 ${currentPlayer.name} drew a card from the deck.`);
       }
       applyBooks(currentPlayer, room);
+    } else {
+      room.log.push(`🃏 Deck is empty — no card to draw.`);
     }
 
     const winner = checkGameOver(room);
