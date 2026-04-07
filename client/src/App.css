@@ -18,8 +18,8 @@
   --text-muted: #94a3b8;
   --border: rgba(255,255,255,0.08);
   --radius: 12px;
-  --card-w: 76px;
-  --card-h: 120px;
+  --card-w: 80px;
+  --card-h: 130px;
 }
 
 html, body, #root {
@@ -524,7 +524,6 @@ body {
   flex-shrink: 0;
   transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
   user-select: none;
-  padding: 5px 4px 4px;
   overflow: hidden;
 }
 .card:active { transform: scale(0.95); }
@@ -537,24 +536,42 @@ body {
   opacity: 0.65;
   cursor: default;
 }
-.card-header {
+
+/* Top section: 3 items still needed */
+.card-needed {
+  width: 100%;
+  background: #f1f5f9;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  padding: 3px 2px;
+  gap: 1px;
+}
+.card-needed-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 0;
+  flex: 1;
 }
-.card-flag {
-  font-size: 1.1rem;
+.card-needed-emoji {
+  font-size: 0.75rem;
   line-height: 1;
 }
-.card-country {
-  font-size: 0.52rem;
-  font-weight: 800;
-  color: #1a2744;
+.card-needed-label {
+  font-size: 0.36rem;
+  color: #64748b;
   text-align: center;
   line-height: 1.2;
-  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  padding: 0 1px;
 }
+
+/* Middle: this card's item — large */
 .card-main-char {
   flex: 1;
   display: flex;
@@ -562,39 +579,45 @@ body {
   align-items: center;
   justify-content: center;
   gap: 2px;
+  padding: 4px 3px 2px;
 }
 .card-emoji {
-  font-size: 1.35rem;
+  font-size: 1.5rem;
   line-height: 1;
 }
 .card-label {
-  font-size: 0.48rem;
-  color: #475569;
+  font-size: 0.5rem;
+  color: #1e293b;
+  font-weight: 700;
   text-align: center;
   line-height: 1.3;
   padding: 0 2px;
 }
-/* All 4 characteristics strip at the bottom */
-.card-all-chars {
-  display: flex;
-  justify-content: center;
-  gap: 2px;
+
+/* Bottom: category name */
+.card-footer {
   width: 100%;
-  padding-top: 3px;
-  border-top: 1px solid #e2e8f0;
-  margin-top: auto;
+  background: #1a2744;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 3px 4px;
 }
-.card-char-dot {
-  font-size: 0.62rem;
+.card-flag {
+  font-size: 0.75rem;
   line-height: 1;
-  opacity: 0.3;
-  border-radius: 3px;
-  padding: 1px;
 }
-.card-char-dot.active {
-  opacity: 1;
-  background: #fef3c7;
-  outline: 1px solid #f59e0b;
+.card-country {
+  font-size: 0.48rem;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── GUESS PANEL ──────────────────────────── */

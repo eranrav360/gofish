@@ -27,7 +27,7 @@ function shuffle(arr) {
 }
 
 function dealCards(deck, playerCount) {
-  const handSize = playerCount <= 3 ? 7 : 5;
+  const handSize = 6;
   const hands = Array.from({ length: playerCount }, () => []);
   const deckCopy = [...deck];
   for (let i = 0; i < handSize * playerCount; i++) {
