@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import socket from '../socket';
 import Card from './Card';
 import { COUNTRIES_MAP } from '../countries';
@@ -15,7 +15,6 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const [toast, setToast] = useState(null);
   const [bannerText, setBannerText] = useState('');
   const [peekCountry, setPeekCountry] = useState(null);
-  const bannerTimerRef = useRef(null);
 
   const { phase, players, currentPlayerIndex, deckCount, log, awaitingGuess } = gameState;
   const me = players.find(p => p.id === playerId);
@@ -27,13 +26,10 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const myHand = me?.hand || [];
   const handGrouped = [...myHand].sort((a, b) => a.country.localeCompare(b.country));
 
-  // Show last log entry as action banner
+  // Show last log entry as action banner — stays until next action
   useEffect(() => {
     if (log && log.length > 0) {
-      const last = log[log.length - 1];
-      setBannerText(last);
-      if (bannerTimerRef.current) clearTimeout(bannerTimerRef.current);
-      bannerTimerRef.current = setTimeout(() => setBannerText(''), 4000);
+      setBannerText(log[log.length - 1]);
     }
   }, [log]);
 
