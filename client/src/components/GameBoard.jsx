@@ -2,17 +2,10 @@ import { useState, useEffect } from 'react';
 import socket from '../socket';
 import Card from './Card';
 import GameLog from './GameLog';
+import { COUNTRIES_MAP } from '../countries';
 
-const COUNTRY_FLAGS = {
-  france: '🇫🇷', japan: '🇯🇵', brazil: '🇧🇷', egypt: '🇪🇬', india: '🇮🇳',
-  australia: '🇦🇺', italy: '🇮🇹', mexico: '🇲🇽', china: '🇨🇳', usa: '🇺🇸',
-  kenya: '🇰🇪', russia: '🇷🇺', peru: '🇵🇪',
-};
-const COUNTRY_NAMES = {
-  france: 'France', japan: 'Japan', brazil: 'Brazil', egypt: 'Egypt', india: 'India',
-  australia: 'Australia', italy: 'Italy', mexico: 'Mexico', china: 'China', usa: 'USA',
-  kenya: 'Kenya', russia: 'Russia', peru: 'Peru',
-};
+const COUNTRY_FLAGS = Object.fromEntries(Object.entries(COUNTRIES_MAP).map(([id, c]) => [id, c.flag]));
+const COUNTRY_NAMES = Object.fromEntries(Object.entries(COUNTRIES_MAP).map(([id, c]) => [id, c.name]));
 
 function initials(name) {
   return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -22,11 +15,12 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   const [selectedCountry, setSelectedCountry] = useState(null);
   const [toast, setToast] = useState(null);
 
-  const { phase, players, currentPlayerIndex, deckCount, log } = gameState;
+  const { phase, players, currentPlayerIndex, deckCount, log, awaitingGuess } = gameState;
   const me = players.find(p => p.id === playerId);
   const opponents = players.filter(p => p.id !== playerId);
   const isMyTurn = me && players[currentPlayerIndex]?.id === playerId;
   const isHost = me?.isHost;
+  const iAmGuessing = awaitingGuess?.askerId === playerId;
 
   // Dedup hand by country for selection purposes — show one card per country grouped
   const myHand = me?.hand || [];
@@ -61,6 +55,10 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
     if (!selectedCountry || !targetId) return;
     socket.emit('ask-for-country', { roomCode, targetPlayerId: targetId, country: selectedCountry });
     setSelectedCountry(null);
+  }
+
+  function handleGuess(characteristicId) {
+    socket.emit('guess-characteristic', { roomCode, characteristicId });
   }
 
   function handleStart() {
@@ -160,10 +158,12 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
       </div>
 
       {/* Turn banner */}
-      <div className={`turn-banner ${isMyTurn ? 'my-turn' : 'other-turn'}`}>
-        {isMyTurn
-          ? '⭐ Your turn — tap a card, then choose who to ask'
-          : `⏳ ${currentPlayerName}'s turn…`}
+      <div className={`turn-banner ${isMyTurn || iAmGuessing ? 'my-turn' : 'other-turn'}`}>
+        {iAmGuessing
+          ? `🎯 Guess which ${COUNTRY_FLAGS[awaitingGuess.country]} ${COUNTRY_NAMES[awaitingGuess.country]} card they hold!`
+          : isMyTurn
+            ? '⭐ Your turn — tap a card, then choose who to ask'
+            : `⏳ ${currentPlayerName}'s turn…`}
       </div>
 
       {/* Opponents */}
@@ -207,8 +207,8 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
         </div>
       </div>
 
-      {/* Ask panel — appears when a country is selected */}
-      {isMyTurn && selectedCountry && (
+      {/* Ask panel — step 1: select country, then pick opponent */}
+      {isMyTurn && !awaitingGuess && selectedCountry && (
         <div className="ask-panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
@@ -233,6 +233,27 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
         </div>
       )}
 
+      {/* Guess panel — step 2: pick which characteristic the opponent holds */}
+      {iAmGuessing && (
+        <div className="guess-panel">
+          <div className="guess-panel-title">
+            Which {COUNTRY_FLAGS[awaitingGuess.country]} {COUNTRY_NAMES[awaitingGuess.country]} characteristic do they have?
+          </div>
+          <div className="guess-grid">
+            {(COUNTRIES_MAP[awaitingGuess.country]?.characteristics || []).map(c => (
+              <button
+                key={c.id}
+                className="guess-btn"
+                onClick={() => handleGuess(c.id)}
+              >
+                <span className="guess-btn-emoji">{c.emoji}</span>
+                <span className="guess-btn-label">{c.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Hand */}
       <div className="hand-area">
         <div className="hand-scroll">
@@ -241,7 +262,7 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
               key={card.id}
               card={card}
               selected={selectedCountry === card.country}
-              disabled={!isMyTurn}
+              disabled={!isMyTurn || !!awaitingGuess}
               onClick={() => handleCardClick(card)}
             />
           ))}

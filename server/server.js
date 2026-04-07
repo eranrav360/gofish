@@ -38,6 +38,7 @@ function getPublicState(room, forPlayerId) {
     deckCount: room.deck.length,
     log: room.log.slice(-20),
     lastAction: room.lastAction,
+    awaitingGuess: room.awaitingGuess || null,
   };
 }
 
@@ -149,14 +150,40 @@ io.on('connection', (socket) => {
     if (!hasCountry) return socket.emit('error', 'You must hold a card of that country to ask for it');
 
     const countryName = getCountryName(country);
-    const transferred = target.hand.filter(c => c.country === country);
+    const targetHas = target.hand.some(c => c.country === country);
 
-    if (transferred.length > 0) {
-      target.hand = target.hand.filter(c => c.country !== country);
-      currentPlayer.hand.push(...transferred);
+    if (targetHas) {
+      // Target has the country — asker must now guess the specific characteristic
+      room.awaitingGuess = { askerId: socket.id, targetId: target.id, country };
+      room.log.push(`🤔 ${target.name} has a ${countryName} card! ${currentPlayer.name}, guess which characteristic…`);
+    } else {
+      // Go Fish immediately
+      goFish(room, currentPlayer, target, country, countryName);
+    }
+
+    broadcastState(room);
+  });
+
+  socket.on('guess-characteristic', ({ roomCode, characteristicId }) => {
+    const room = rooms[roomCode];
+    if (!room || room.phase !== 'playing' || !room.awaitingGuess) return;
+    if (room.awaitingGuess.askerId !== socket.id) return;
+
+    const { askerId, targetId, country } = room.awaitingGuess;
+    room.awaitingGuess = null;
+
+    const currentPlayer = room.players.find(p => p.id === askerId);
+    const target = room.players.find(p => p.id === targetId);
+    const countryName = getCountryName(country);
+
+    const matchedCard = target.hand.find(c => c.id === characteristicId);
+
+    if (matchedCard) {
+      target.hand = target.hand.filter(c => c.id !== characteristicId);
+      currentPlayer.hand.push(matchedCard);
       applyBooks(currentPlayer, room);
-      room.log.push(`✅ ${currentPlayer.name} asked ${target.name} for ${countryName} — got ${transferred.length} card${transferred.length > 1 ? 's' : ''}!`);
-      room.lastAction = { type: 'success', askerId: socket.id, country, count: transferred.length };
+      room.log.push(`✅ Correct! ${currentPlayer.name} guessed ${matchedCard.characteristic} and got the card!`);
+      room.lastAction = { type: 'success', askerId, country, count: 1 };
 
       if (currentPlayer.hand.length === 0 && room.deck.length > 0) {
         currentPlayer.hand.push(room.deck.pop());
@@ -172,36 +199,39 @@ io.on('connection', (socket) => {
         room.log.push(`${currentPlayer.name}'s turn again.`);
       }
     } else {
-      room.log.push(`🐟 ${currentPlayer.name} asked ${target.name} for ${countryName} — Go Fish!`);
-      room.lastAction = { type: 'gofish', askerId: socket.id, country };
-
-      let lucky = false;
-      if (room.deck.length > 0) {
-        const drawn = room.deck.pop();
-        currentPlayer.hand.push(drawn);
-        room.log.push(`${currentPlayer.name} drew a card from the deck.`);
-
-        if (drawn.country === country) {
-          lucky = true;
-          room.log.push(`🍀 ${currentPlayer.name} drew a ${countryName} card — lucky! Goes again!`);
-        }
-        applyBooks(currentPlayer, room);
-      }
-
-      const winner = checkGameOver(room);
-      if (winner) {
-        room.phase = 'ended';
-        room.log.push(`🏆 ${winner.name} wins with ${winner.books.length} book${winner.books.length > 1 ? 's' : ''}!`);
-      } else if (!lucky) {
-        room.currentPlayerIndex = getNextPlayerIndex(room);
-        room.log.push(`${room.players[room.currentPlayerIndex].name}'s turn.`);
-      } else {
-        room.log.push(`${currentPlayer.name}'s turn again.`);
-      }
+      room.log.push(`❌ Wrong guess! ${currentPlayer.name} guessed wrong — Go Fish!`);
+      goFish(room, currentPlayer, target, country, countryName);
     }
 
     broadcastState(room);
   });
+
+  function goFish(room, currentPlayer, target, country, countryName) {
+    room.log.push(`🐟 Go Fish! ${currentPlayer.name} draws from the deck.`);
+    room.lastAction = { type: 'gofish', askerId: currentPlayer.id, country };
+
+    let lucky = false;
+    if (room.deck.length > 0) {
+      const drawn = room.deck.pop();
+      currentPlayer.hand.push(drawn);
+      if (drawn.country === country) {
+        lucky = true;
+        room.log.push(`🍀 ${currentPlayer.name} drew a ${countryName} card — lucky! Goes again!`);
+      }
+      applyBooks(currentPlayer, room);
+    }
+
+    const winner = checkGameOver(room);
+    if (winner) {
+      room.phase = 'ended';
+      room.log.push(`🏆 ${winner.name} wins with ${winner.books.length} book${winner.books.length > 1 ? 's' : ''}!`);
+    } else if (!lucky) {
+      room.currentPlayerIndex = getNextPlayerIndex(room);
+      room.log.push(`${room.players[room.currentPlayerIndex].name}'s turn.`);
+    } else {
+      room.log.push(`${currentPlayer.name}'s turn again.`);
+    }
+  }
 
   socket.on('restart-game', ({ roomCode }) => {
     const room = rooms[roomCode];
@@ -214,6 +244,7 @@ io.on('connection', (socket) => {
     room.deck = [];
     room.log = ['New game lobby. Host can start when ready.'];
     room.lastAction = null;
+    room.awaitingGuess = null;
     broadcastState(room);
   });
 
