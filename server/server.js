@@ -151,15 +151,18 @@ io.on('connection', (socket) => {
     if (!hasCountry) return socket.emit('error', 'You must hold a card of that country to ask for it');
 
     const countryName = getCountryName(country);
+    const countryFlag = COUNTRIES.find(c => c.id === country)?.flag || '';
+    const askerCard = currentPlayer.hand.find(c => c.country === country);
+    const askerCardDesc = askerCard ? `${askerCard.emoji} ${askerCard.characteristic}` : countryName;
     const targetHas = target.hand.some(c => c.country === country);
 
     if (targetHas) {
       // Target has the country — asker must now guess the specific characteristic
       room.awaitingGuess = { askerId: socket.id, targetId: target.id, country };
-      room.log.push(`🤔 ${currentPlayer.name} asked ${target.name} for ${countryName} — ${target.name} has one! Guess which characteristic…`);
+      room.log.push(`🤔 ${currentPlayer.name} asked ${target.name} about ${askerCardDesc} in the ${countryFlag} ${countryName} rank — ${target.name} has one! Guess which card…`);
     } else {
       // Go Fish immediately
-      goFish(room, currentPlayer, target, country, countryName);
+      goFish(room, currentPlayer, target, country, countryName, countryFlag, askerCardDesc);
     }
 
     broadcastState(room);
@@ -179,11 +182,15 @@ io.on('connection', (socket) => {
 
     const matchedCard = target.hand.find(c => c.id === characteristicId);
 
+    const countryFlag2 = COUNTRIES.find(c => c.id === country)?.flag || '';
+    const askerCard2 = currentPlayer.hand.find(c => c.country === country);
+    const askerCardDesc2 = askerCard2 ? `${askerCard2.emoji} ${askerCard2.characteristic}` : countryName;
+
     if (matchedCard) {
       target.hand = target.hand.filter(c => c.id !== characteristicId);
       currentPlayer.hand.push(matchedCard);
       applyBooks(currentPlayer, room);
-      room.log.push(`✅ Correct! ${currentPlayer.name} guessed ${matchedCard.characteristic} and got the card!`);
+      room.log.push(`✅ ${currentPlayer.name} drew ${matchedCard.emoji} ${matchedCard.characteristic} / ${countryFlag2} ${countryName} from ${target.name}!`);
       room.lastAction = { type: 'success', askerId, country, count: 1 };
 
       if (currentPlayer.hand.length === 0 && room.deck.length > 0) {
@@ -200,15 +207,16 @@ io.on('connection', (socket) => {
         room.log.push(`${currentPlayer.name}'s turn again.`);
       }
     } else {
-      room.log.push(`❌ Wrong guess! ${currentPlayer.name} guessed wrong — Go Fish!`);
-      goFish(room, currentPlayer, target, country, countryName);
+      room.log.push(`❌ ${currentPlayer.name} guessed wrong — Go Fish!`);
+      goFish(room, currentPlayer, target, country, countryName, countryFlag2, askerCardDesc2);
     }
 
     broadcastState(room);
   });
 
-  function goFish(room, currentPlayer, target, country, countryName) {
-    room.log.push(`🐟 ${currentPlayer.name} asked ${target.name} for ${countryName} — Go Fish!`);
+  function goFish(room, currentPlayer, target, country, countryName, countryFlag, askerCardDesc) {
+    const flag = countryFlag || COUNTRIES.find(c => c.id === country)?.flag || '';
+    room.log.push(`🐟 ${currentPlayer.name} asked ${target.name} about ${askerCardDesc || countryName} in the ${flag} ${countryName} rank — Go Fish!`);
     room.lastAction = { type: 'gofish', askerId: currentPlayer.id, country };
 
     let lucky = false;
@@ -217,9 +225,9 @@ io.on('connection', (socket) => {
       currentPlayer.hand.push(drawn);
       if (drawn.country === country) {
         lucky = true;
-        room.log.push(`🍀 Lucky! ${currentPlayer.name} drew ${countryName} — goes again!`);
+        room.log.push(`🍀 Lucky! ${currentPlayer.name} drew ${drawn.emoji} ${drawn.characteristic} / ${flag} ${countryName} — goes again!`);
       } else {
-        room.log.push(`🃏 ${currentPlayer.name} drew a card from the deck.`);
+        room.log.push(`🃏 ${currentPlayer.name} drew ${drawn.emoji} ${drawn.characteristic} from the deck.`);
       }
       applyBooks(currentPlayer, room);
     } else {

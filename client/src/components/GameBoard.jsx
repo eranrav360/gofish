@@ -98,7 +98,8 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   function handleAsk(targetId) {
     if (!selectedCountry || !targetId || pendingRef.current) return;
     pendingRef.current = true;
-    socket.emit('ask-for-country', { roomCode, targetPlayerId: targetId, country: selectedCountry });
+    // volatile: drop the event if socket is offline rather than buffer+replay on reconnect
+    socket.volatile.emit('ask-for-country', { roomCode, targetPlayerId: targetId, country: selectedCountry });
     setSelectedCountry(null);
     setPeekCountry(null);
   }
@@ -106,7 +107,7 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
   function handleGuess(characteristicId) {
     if (pendingRef.current) return;
     pendingRef.current = true;
-    socket.emit('guess-characteristic', { roomCode, characteristicId });
+    socket.volatile.emit('guess-characteristic', { roomCode, characteristicId });
   }
 
   // Release the pending lock whenever the server sends a new game state
