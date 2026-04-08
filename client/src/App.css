@@ -18,8 +18,8 @@
   --text-muted: #94b8d8;
   --border: rgba(255,255,255,0.12);
   --radius: 14px;
-  --card-w: 100px;
-  --card-h: 162px;
+  --card-w: 130px;
+  --card-h: 210px;
 }
 
 html, body, #root {
@@ -548,22 +548,22 @@ body {
   display: flex;
   justify-content: space-around;
   align-items: center;
-  padding: 4px 2px;
+  padding: 5px 3px;
   gap: 1px;
 }
 .card-needed-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0;
+  gap: 1px;
   flex: 1;
 }
 .card-needed-emoji {
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   line-height: 1;
 }
 .card-needed-label {
-  font-size: 0.42rem;
+  font-size: 0.5rem;
   color: #3a5080;
   text-align: center;
   line-height: 1.2;
@@ -581,20 +581,20 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 6px 4px 2px;
+  gap: 5px;
+  padding: 8px 5px 4px;
 }
 .card-emoji {
-  font-size: 1.9rem;
+  font-size: 2.6rem;
   line-height: 1;
 }
 .card-label {
-  font-size: 0.6rem;
+  font-size: 0.72rem;
   color: #1a2a4a;
   font-weight: 700;
   text-align: center;
   line-height: 1.3;
-  padding: 0 3px;
+  padding: 0 4px;
 }
 
 /* Bottom: category name */
@@ -605,14 +605,14 @@ body {
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 4px 5px;
+  padding: 5px 6px;
 }
 .card-flag {
-  font-size: 0.9rem;
+  font-size: 1.1rem;
   line-height: 1;
 }
 .card-country {
-  font-size: 0.55rem;
+  font-size: 0.65rem;
   font-weight: 800;
   color: #e0eeff;
   text-align: center;

@@ -45,8 +45,8 @@ export default function GameBoard({ gameState, playerId, roomCode, error }) {
     setBannerKey(k => k + 1);
     playSoundForMessage(msg);
     if (queueRef.current.length > 0) {
-      // More messages waiting — show each for 2.2 seconds then advance
-      timerRef.current = setTimeout(processQueue, 2200);
+      // More messages waiting — show each for 3 seconds then advance
+      timerRef.current = setTimeout(processQueue, 3000);
     } else {
       // Last message stays until next event
       processingRef.current = false;

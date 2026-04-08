@@ -36,7 +36,11 @@ function getPublicState(room, forPlayerId) {
       hand: p.id === forPlayerId ? p.hand : undefined,
     })),
     deckCount: room.deck.length,
-    log: room.log.slice(-20),
+    // Resolve log: entries may be plain strings or {public, private:{[playerId]:string}}
+    log: room.log.slice(-20).map(entry => {
+      if (typeof entry === 'string') return entry;
+      return entry.private?.[forPlayerId] ?? entry.public;
+    }),
     lastAction: room.lastAction,
     awaitingGuess: room.awaitingGuess || null,
   };
@@ -194,8 +198,12 @@ io.on('connection', (socket) => {
       room.lastAction = { type: 'success', askerId, country, count: 1 };
 
       if (currentPlayer.hand.length === 0 && room.deck.length > 0) {
-        currentPlayer.hand.push(room.deck.pop());
-        room.log.push(`${currentPlayer.name}'s hand was empty — drew a card.`);
+        const refill = room.deck.pop();
+        currentPlayer.hand.push(refill);
+        room.log.push({
+          public:  `🃏 ${currentPlayer.name}'s hand was empty — drew a card.`,
+          private: { [currentPlayer.id]: `🃏 Your hand was empty — you drew ${refill.emoji} ${refill.characteristic}.` }
+        });
         applyBooks(currentPlayer, room);
       }
 
@@ -225,9 +233,16 @@ io.on('connection', (socket) => {
       currentPlayer.hand.push(drawn);
       if (drawn.country === country) {
         lucky = true;
-        room.log.push(`🍀 Lucky! ${currentPlayer.name} drew ${drawn.emoji} ${drawn.characteristic} / ${flag} ${countryName} — goes again!`);
+        // Lucky draw: country already known to all (they heard the ask), but hide the specific characteristic
+        room.log.push({
+          public:  `🍀 Lucky! ${currentPlayer.name} drew a ${flag} ${countryName} card — goes again!`,
+          private: { [currentPlayer.id]: `🍀 Lucky! You drew ${drawn.emoji} ${drawn.characteristic} / ${flag} ${countryName} — goes again!` }
+        });
       } else {
-        room.log.push(`🃏 ${currentPlayer.name} drew ${drawn.emoji} ${drawn.characteristic} from the deck.`);
+        room.log.push({
+          public:  `🃏 ${currentPlayer.name} drew a card from the deck.`,
+          private: { [currentPlayer.id]: `🃏 You drew ${drawn.emoji} ${drawn.characteristic} from the deck.` }
+        });
       }
       applyBooks(currentPlayer, room);
     } else {
